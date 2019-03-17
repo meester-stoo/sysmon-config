@@ -1,8 +1,22 @@
-﻿$RootDir = "\\acm-alpha.acmmetal.local\ClientApps\Sysmon"
+<# This script is designed to install Sysmon from a network directory during a MDT Deployment
+It also uses some tricks to ensure that the service is not "easily" discoverable. There are methods to find that sysmon is running 
+but this hopefully will prevent the "fluff" from being able to find it.
+By default Sysmon installs it's service using the same name as the executable it's installed as (Hence why it's renamed at source).
+Additionally you can change the name of the Driver it installs (as long as it isan't the same as the service name and is 8 characters or less)
+Finally adding some generic Service descrption, name and such helps to cover it up as well. There is also the option to set the ACL's on the service itself.
+Still looking at how to Hide the actual Sysmon eventlog, but that will probably be an ACL as well
+I have commented out the admin consent configuration because a default windows 10 in a clean MDT deployment doesn't worry about that.
+#>
+
+$RootDir = "<installerdir>\Sysmon"
+#Permissions to Set on folder so that users are unable to modify/view it
 $SDDL = "O:S-1-5-21-3766719631-1581505285-2304295922-1165G:DUD:PAI(A;OICIIO;FA;;;CO)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+#Set installation Folder and configure permissions
 New-Item -Path $env:ProgramData\SysCfg -ItemType Directory -Force
 $FolderSecurity = get-acl -Path $env:ProgramData\SysCfg
 $FolderSecurity.SetSecurityDescriptorSddlForm($SDDL)
+
+#copy the config file and "faux service" (renamed to not be default sysmon service)
 Copy-Item $RootDir\configv7.xml -Destination $env:ProgramData\SysCfg\. -Force
 Copy-Item $RootDir\RDPFltr.exe -Destination $env:ProgramData\SysCfg\. -Force
 #$value = (Get-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name ConsentPromptBehaviorAdmin).ConsentPromptBehaviorAdmin
@@ -14,96 +28,3 @@ Start-Process -FilePath 'sc.exe' -ArgumentList 'failure RDPFltr reset= 432000 ac
 Start-Process -FilePath 'sc.exe' -ArgumentList 'sdset RDPFltr D:(D;;DCLCWPDTSD;;;IU)(D;;DCLCWPDTSD;;;SU)(D;;DCLCWPDTSD;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)' -WindowStyle 'Hidden'
 #Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name ConsentPromptBehaviorAdmin -Value $value
 Set-Acl -Path $env:ProgramData\SysCfg -AclObject $FolderSecurity
-
- 
-# SIG # Begin signature block
-# MIIQrAYJKoZIhvcNAQcCoIIQnTCCEJkCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
-# gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUJsuJ4zG3szRyrXKvI2YsqRVc
-# EYOgggvPMIIEmTCCA4GgAwIBAgIPFojwOSVeY45pFDkH5jMLMA0GCSqGSIb3DQEB
-# BQUAMIGVMQswCQYDVQQGEwJVUzELMAkGA1UECBMCVVQxFzAVBgNVBAcTDlNhbHQg
-# TGFrZSBDaXR5MR4wHAYDVQQKExVUaGUgVVNFUlRSVVNUIE5ldHdvcmsxITAfBgNV
-# BAsTGGh0dHA6Ly93d3cudXNlcnRydXN0LmNvbTEdMBsGA1UEAxMUVVROLVVTRVJG
-# aXJzdC1PYmplY3QwHhcNMTUxMjMxMDAwMDAwWhcNMTkwNzA5MTg0MDM2WjCBhDEL
-# MAkGA1UEBhMCR0IxGzAZBgNVBAgTEkdyZWF0ZXIgTWFuY2hlc3RlcjEQMA4GA1UE
-# BxMHU2FsZm9yZDEaMBgGA1UEChMRQ09NT0RPIENBIExpbWl0ZWQxKjAoBgNVBAMT
-# IUNPTU9ETyBTSEEtMSBUaW1lIFN0YW1waW5nIFNpZ25lcjCCASIwDQYJKoZIhvcN
-# AQEBBQADggEPADCCAQoCggEBAOnpPd/XNwjJHjiyUlNCbSLxscQGBGue/YJ0UEN9
-# xqC7H075AnEmse9D2IOMSPznD5d6muuc3qajDjscRBh1jnilF2n+SRik4rtcTv6O
-# KlR6UPDV9syR55l51955lNeWM/4Og74iv2MWLKPdKBuvPavql9LxvwQQ5z1IRf0f
-# aGXBf1mZacAiMQxibqdcZQEhsGPEIhgn7ub80gA9Ry6ouIZWXQTcExclbhzfRA8V
-# zbfbpVd2Qm8AaIKZ0uPB3vCLlFdM7AiQIiHOIiuYDELmQpOUmJPv/QbZP7xbm1Q8
-# ILHuatZHesWrgOkwmt7xpD9VTQoJNIp1KdJprZcPUL/4ygkCAwEAAaOB9DCB8TAf
-# BgNVHSMEGDAWgBTa7WR0FJwUPKvdmam9WyhNizzJ2DAdBgNVHQ4EFgQUjmstM2v0
-# M6eTsxOapeAK9xI1aogwDgYDVR0PAQH/BAQDAgbAMAwGA1UdEwEB/wQCMAAwFgYD
-# VR0lAQH/BAwwCgYIKwYBBQUHAwgwQgYDVR0fBDswOTA3oDWgM4YxaHR0cDovL2Ny
-# bC51c2VydHJ1c3QuY29tL1VUTi1VU0VSRmlyc3QtT2JqZWN0LmNybDA1BggrBgEF
-# BQcBAQQpMCcwJQYIKwYBBQUHMAGGGWh0dHA6Ly9vY3NwLnVzZXJ0cnVzdC5jb20w
-# DQYJKoZIhvcNAQEFBQADggEBALozJEBAjHzbWJ+zYJiy9cAx/usfblD2CuDk5oGt
-# Joei3/2z2vRz8wD7KRuJGxU+22tSkyvErDmB1zxnV5o5NuAoCJrjOU+biQl/e8Vh
-# f1mJMiUKaq4aPvCiJ6i2w7iH9xYESEE9XNjsn00gMQTZZaHtzWkHUxY93TYCCojr
-# QOUGMAu4Fkvc77xVCf/GPhIudrPczkLv+XZX4bcKBUCYWJpdcRaTcYxlgepv84n3
-# +3OttOe/2Y5vqgtPJfO44dXddZhogfiqwNGAwsTEOYnB9smebNd0+dmX+E/CmgrN
-# Xo/4GengpZ/E8JIh5i15Jcki+cPwOoRXrToW9GOUEB1d0MYwggcuMIIFFqADAgEC
-# AhMpAAA3KAQh2eiwG/WgAAAAADcoMA0GCSqGSIb3DQEBDQUAMEgxFTATBgoJkiaJ
-# k/IsZAEZFgVsb2NhbDEYMBYGCgmSJomT8ixkARkWCGFjbW1ldGFsMRUwEwYDVQQD
-# EwxBQ00tQWxwaGEtQ0EwHhcNMTgwNzI3MDAxODA2WhcNMTkwNzI3MDAxODA2WjBY
-# MRUwEwYKCZImiZPyLGQBGRYFbG9jYWwxGDAWBgoJkiaJk/IsZAEZFghhY21tZXRh
-# bDEOMAwGA1UEAxMFVXNlcnMxFTATBgNVBAMTDEphc29uIFN0dWFydDCCASIwDQYJ
-# KoZIhvcNAQEBBQADggEPADCCAQoCggEBAJDNm7TLc8PjbRWJlHjwjGImWCuOEss5
-# VmDkiU498x06z4Zg8SUdPnKrveB7uoQhAW4hDwSIucPH0W09Wy1vWwHfBMF5q8Ri
-# IdpnyMGKqiH6Ar1k/gJjXyToWKApH3sGcW4DjSzeNRxNDG8D9SNxzjUI4eh0fkJT
-# jcrTuzmxUEFgf8fdcQ2GSOoSEtI3zZiGY2ZP2iRAaI8S5J7o+Pw3gudKXGITv2YL
-# wWT11fAK1zHDU9YWAUqvhjPseJZw++EYO0LWgYO98ab0X8C1TrPF2O160lE0qrFl
-# 9UyCCguT3hTdlAwa5niY5bxb3crw+IWZZEe23OSW1xsW+kfNe744lOcCAwEAAaOC
-# Av8wggL7MCUGCSsGAQQBgjcUAgQYHhYAQwBvAGQAZQBTAGkAZwBuAGkAbgBnMBMG
-# A1UdJQQMMAoGCCsGAQUFBwMDMA4GA1UdDwEB/wQEAwIHgDAyBgNVHREEKzApoCcG
-# CisGAQQBgjcUAgOgGQwXamRzdHVhcnRAYWNtbWV0YWwubG9jYWwwHQYDVR0OBBYE
-# FNFEVu0s7qpcKc3qwAsdYr6gWelTMB8GA1UdIwQYMBaAFD2t8zdMbTF0DpxBG/H5
-# 2tvxqknDMIIBDgYDVR0fBIIBBTCCAQEwgf6ggfuggfiGgbhsZGFwOi8vL0NOPUFD
-# TS1BbHBoYS1DQSxDTj1BQ00tQUxQSEEsQ049Q0RQLENOPVB1YmxpYyUyMEtleSUy
-# MFNlcnZpY2VzLENOPVNlcnZpY2VzLENOPUNvbmZpZ3VyYXRpb24sREM9YWNtbWV0
-# YWwsREM9bG9jYWw/Y2VydGlmaWNhdGVSZXZvY2F0aW9uTGlzdD9iYXNlP29iamVj
-# dENsYXNzPWNSTERpc3RyaWJ1dGlvblBvaW50hjtodHRwOi8vQUNNLUFMUEhBLmFj
-# bW1ldGFsLmxvY2FsL0NlcnRFbnJvbGwvQUNNLUFscGhhLUNBLmNybDCCASUGCCsG
-# AQUFBwEBBIIBFzCCARMwga4GCCsGAQUFBzAChoGhbGRhcDovLy9DTj1BQ00tQWxw
-# aGEtQ0EsQ049QUlBLENOPVB1YmxpYyUyMEtleSUyMFNlcnZpY2VzLENOPVNlcnZp
-# Y2VzLENOPUNvbmZpZ3VyYXRpb24sREM9YWNtbWV0YWwsREM9bG9jYWw/Y0FDZXJ0
-# aWZpY2F0ZT9iYXNlP29iamVjdENsYXNzPWNlcnRpZmljYXRpb25BdXRob3JpdHkw
-# YAYIKwYBBQUHMAKGVGh0dHA6Ly9BQ00tQUxQSEEuYWNtbWV0YWwubG9jYWwvQ2Vy
-# dEVucm9sbC9BQ00tQUxQSEEuYWNtbWV0YWwubG9jYWxfQUNNLUFscGhhLUNBLmNy
-# dDANBgkqhkiG9w0BAQ0FAAOCAgEAKWXdEInpNU+EVsRrMJeaGoIeQeOWGQQ1lhsS
-# /HPjsZE/+8glFNzeJwbdGxhXhmnu4ckQ7GfPxjRDx9HkoPXae9hQiOlxM7UUBuXw
-# JEmdLjpJcp3xY6ljaHR0la43vLkYfcRwhZyg42tyhivcWw4CSzHRKuk5gNgACkdy
-# 0A+85ekdhlpmvJF79pZV/+BdqQEkdZ3KxG8BaqiEQleZzrpZxcFH/D0bkC+Ajngq
-# rGZaFkH1iih+eT4/0aTCn0J3DgZa5h5g9c6J2nbqq38reJfJqJ1vOfHDjmDGqzNu
-# 81tbIzqmOmi7uNIunMtzgVLmEGgSZnOM16feysSHKHm8XQQbModaEj6lww8WPOvo
-# yTZDgUgCz/F9AOt/K+kKd609PF5LjJ4//JMf7GxkULKi8ujjghkzzHOlSZQKrClZ
-# ZKOOyFDY4Jxxx5N4ScJ+P9HvDxST+YaEP7VtpFUPRZEXPfe6n/jSJMqH5++VUgLs
-# 5PlMNCUtrCX+mqot4259LMPKHu1BKAqj2DYStqE542p80a+w432cPFXPHaWsYahh
-# H+XY/6ejMeErXuUniNu7m3GqfIDjGlI52N9erP4OZtO5anX+eGIB5AVhmE6zAXVQ
-# rcjhGFBEpy//JBs6dvY0DDRfIjbW0QYdWVa5aedGiU3YwXpVXieyqUuRIelJW/BF
-# JvlezI8xggRHMIIEQwIBATBfMEgxFTATBgoJkiaJk/IsZAEZFgVsb2NhbDEYMBYG
-# CgmSJomT8ixkARkWCGFjbW1ldGFsMRUwEwYDVQQDEwxBQ00tQWxwaGEtQ0ECEykA
-# ADcoBCHZ6LAb9aAAAAAANygwCQYFKw4DAhoFAKB4MBgGCisGAQQBgjcCAQwxCjAI
-# oAKAAKECgAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIB
-# CzEOMAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFNqNIn4PPMlDjB2AL+Sl
-# GjK6gMaBMA0GCSqGSIb3DQEBAQUABIIBAA6un9LyiOahTqzq8noeCNrgdDtUOB0S
-# CeIo81AavcEKc5ishg3QT5LFCCYpNXww0n1w+YnvRfYoBXMqG7OTps4XeTK7rN1P
-# +H/VMcLMcmFehVPUzcdX1EdCR52bCzO/pXD8vNr4YavoKNngmGtKNURpNrMLAnKi
-# aw+BqvEkbpkRkv/0ASsKQxPBP+BWdQVoQSoatcmsQ4a2/89w0+FJS5UyTkF3mrns
-# KiqMAq0hDShyQljM14u43sQbiPDpu62MM7rJr0nTCupa3/xcIqEBevtdsV07/7ZF
-# BvHBlUDUnzM1SyU0qf64/oWIO94HRipjNbZJhknIkvxUyDUb6zASbkqhggJDMIIC
-# PwYJKoZIhvcNAQkGMYICMDCCAiwCAQEwgakwgZUxCzAJBgNVBAYTAlVTMQswCQYD
-# VQQIEwJVVDEXMBUGA1UEBxMOU2FsdCBMYWtlIENpdHkxHjAcBgNVBAoTFVRoZSBV
-# U0VSVFJVU1QgTmV0d29yazEhMB8GA1UECxMYaHR0cDovL3d3dy51c2VydHJ1c3Qu
-# Y29tMR0wGwYDVQQDExRVVE4tVVNFUkZpcnN0LU9iamVjdAIPFojwOSVeY45pFDkH
-# 5jMLMAkGBSsOAwIaBQCgXTAYBgkqhkiG9w0BCQMxCwYJKoZIhvcNAQcBMBwGCSqG
-# SIb3DQEJBTEPFw0xOTAzMDQxODM3MDFaMCMGCSqGSIb3DQEJBDEWBBTdVe0fNDOw
-# xjmvg/DaNMNXlCP3MjANBgkqhkiG9w0BAQEFAASCAQAH/e3NZ5h29XaYk4eebqUK
-# tAnMXvRDSyfZoSSzoGl8sKOlWPeq0xhyHUqLejA7oDxtzHXFzF5CShw2FVr6sLWT
-# KvgHybFllEjxnCpxSVJLi6mF2r8PWFrowIkCw8oJhybwC8gdwCeIDLP22WIbr5sW
-# c0p1CKOKVl8EbprKgmg2ZNmz5b8fIHhRudFMK7uhI/gHG6DdDojnizvWlrutt5i5
-# 2EwdTVcWNRsxXIcw2PT6A8DeH5/0QGAH9gBXtVzce4hS01qq8uWhyJEwnqySNooi
-# dnFkwHH0bhGeUDF6qgwUNmVYjxmV4/30hF54Pn9Q1oskF+oHHHvtEWjbc0/CFt/S
-# SIG # End signature block
